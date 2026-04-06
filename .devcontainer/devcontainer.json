@@ -1,0 +1,103 @@
+{
+  "name": "Python Dev (Fedora)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+
+  "runArgs": [
+    // SSH agent socket forwarding
+    "--mount", "type=bind,source=${env:SSH_AUTH_SOCK},target=/tmp/ssh-agent.sock",
+    // Google Cloud / Vertex credentials (readonly) — required for Claude Code with Vertex AI
+    "--mount", "type=bind,source=${localEnv:HOME}/.config/gcloud,target=/home/developer/.config/gcloud,readonly",
+    // Wayland display forwarding — for GUI apps using host Wayland compositor
+    // Assumes host user UID 1000; adjust /run/user/1000 if your UID differs
+    "--volume=/run/user/1000/wayland-0:/tmp/wayland-0",
+    "--add-host=host.docker.internal:host-gateway"
+  ],
+
+  "remoteUser": "developer",
+
+  "containerEnv": {
+    // UV configuration — must match Dockerfile ENVs for runtime consistency
+    "UV_TOOL_DIR": "/usr/local/share/uv/tools",
+    "UV_TOOL_BIN_DIR": "/usr/local/bin",
+    "UV_PYTHON_INSTALL_DIR": "/usr/local/share/uv/python",
+    "UV_PYTHON": "3.14",
+    "UV_LINK_MODE": "copy",
+    "UV_NO_PROGRESS": "1",
+    // Soft pip barrier: if pip is somehow invoked, it requires an active venv
+    "PIP_REQUIRE_VIRTUALENV": "true",
+
+    // SSH agent socket (populated by the runArgs mount above)
+    "SSH_AUTH_SOCK": "/tmp/ssh-agent.sock",
+
+    // Wayland display forwarding
+    "WAYLAND_DISPLAY": "wayland-0",
+    "XDG_RUNTIME_DIR": "/tmp",
+    "QT_QPA_PLATFORM": "wayland",
+    "GDK_BACKEND": "wayland",
+
+    // Claude Code Vertex AI credentials — forwarded from host environment variables
+    "ANTHROPIC_VERTEX_PROJECT_ID": "${localEnv:ANTHROPIC_VERTEX_PROJECT_ID}",
+    "ANTHROPIC_VERTEX_REGION": "${localEnv:ANTHROPIC_VERTEX_REGION}",
+    "CLAUDE_CODE_USE_VERTEX": "${localEnv:CLAUDE_CODE_USE_VERTEX}",
+
+    // Python venv path — IntelliJ and VS Code both auto-detect the interpreter from VIRTUAL_ENV
+    "VIRTUAL_ENV": "${containerWorkspaceFolder}/.venv",
+
+    // Project source on the Python module search path (src-layout convention)
+    "PYTHONPATH": "${containerWorkspaceFolder}/src"
+  },
+
+  // initializeCommand runs on HOST before container creation
+  // Creates any paths that must exist before Docker evaluates the runArgs mounts
+  "initializeCommand": "touch ${localEnv:HOME}/.gitconfig && mkdir -p ${localEnv:HOME}/.config/gcloud",
+
+  "mounts": [
+    // Mount to a staging path (read-only) — git cannot do atomic writes to a bind-mounted file.
+    // setup-environment.sh copies this to ~/.gitconfig so git has a writable copy.
+    {
+      "source": "${localEnv:HOME}/.gitconfig",
+      "target": "/tmp/host-gitconfig",
+      "type": "bind",
+      "readonly": true
+    }
+  ],
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
+        "python.terminal.activateEnvironment": true,
+        "editor.formatOnSave": true,
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+          }
+        },
+        "ruff.enable": true,
+        "ruff.organizeImports": true
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff"
+      ]
+    },
+    "jetbrains": {
+      "backend": "IU",
+      "plugins": [
+        "PythonCore",
+        "intellij.python.lsp",
+        "net.ashald.envfile",
+        "ru.adelf.idea.dotenv",
+        "net.seesharpsoft.intellij.plugins.csv"
+      ]
+    }
+  },
+
+  "postCreateCommand": ".devcontainer/setup-environment.sh"
+}
