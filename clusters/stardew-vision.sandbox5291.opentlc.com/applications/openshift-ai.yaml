@@ -19,7 +19,7 @@ spec:
       - ../../clusters/stardew-vision.sandbox5291.opentlc.com/values/openshift-ai/values.yaml
     path: charts/openshift-ai
     repoURL: git@github.com:thesteve0/openshift-setup.git
-    targetRevision: HEAD
+    targetRevision: my-stuff
   syncPolicy:
     automated:
       prune: true
