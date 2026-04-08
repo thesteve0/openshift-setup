@@ -18,7 +18,7 @@ spec:
       - ../../clusters/stardew-vision.sandbox5291.opentlc.com/cluster.yaml
     path: charts/monitoring
     repoURL: git@github.com:thesteve0/openshift-setup.git
-    targetRevision: HEAD
+    targetRevision: my-stuff
   syncPolicy:
     automated:
       prune: true
