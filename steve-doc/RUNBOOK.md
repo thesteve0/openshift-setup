@@ -371,12 +371,17 @@ This time, the cluster already exists, so the install step is skipped. The frame
 
 **You're done.** The cluster is running and ArgoCD is managing its configuration.
 
-You can access:
-- **OpenShift Console:** `https://console-openshift-console.apps.<cluster>.<domain>`
-- **ArgoCD UI:** `https://openshift-gitops-server-openshift-gitops.apps.<cluster>.<domain>`
-
-Log into the console with the `admin` password printed during provisioning, or with GitHub if
-you configured GitHub OAuth.
+> ### Accessing Your Cluster
+>
+> | | URL |
+> |---|---|
+> | **OpenShift Console** | `https://console-openshift-console.apps.<cluster>.<domain>` |
+> | **ArgoCD UI** | `https://openshift-gitops-server-openshift-gitops.apps.<cluster>.<domain>` |
+>
+> **Credentials:**
+> - **GitHub OAuth:** log in with your GitHub account
+> - **Generated passwords:** use the `admin` / `developer` passwords printed during provisioning
+>   (also in `clusters/<cluster>/values/oauth/secrets.yaml` on disk until you run `make encrypt`)
 
 ---
 
