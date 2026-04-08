@@ -5,6 +5,9 @@ I also always forget how to spin this up and manage it correctly. This directory
 to how I use James's excellent work. I am putting it in this separate directory to help keep the source tree clean in case I ever want to 
 do a PR or merge in stuff from James. 
 
+We are not using devcontainers for this project because if I run `make shell` in the root of the repo this will spin up shell running inside podman that has
+all the commands and worked wired together
+
 ## Steps
 1. Provision this first - it will give me just credentials and a domain name
    https://catalog.demo.redhat.com/catalog?item=babylon-catalog-prod/sandboxes-gpte.sandbox-open.prod&utm_source=webapp&utm_medium=share-link
