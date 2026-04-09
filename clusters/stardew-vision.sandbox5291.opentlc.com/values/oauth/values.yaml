@@ -1,7 +1,8 @@
 providers:
   htpasswd: null
   github:
-    hostname: github.com
+    organizations:
+      - TechRavenConsulting
 
 admins:
   - thesteve0
