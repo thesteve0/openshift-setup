@@ -1,8 +1,6 @@
 providers:
   htpasswd: null
   github:
-    organizations:
-      - thesteve0
 
 admins:
   - thesteve0
