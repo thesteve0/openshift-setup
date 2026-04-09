@@ -10,7 +10,7 @@ metadata:
 spec:
   destination:
     name: in-cluster
-    namespace: default
+    namespace: redhat-ods-operator
   project: default
   source:
     path: charts/install-operators
