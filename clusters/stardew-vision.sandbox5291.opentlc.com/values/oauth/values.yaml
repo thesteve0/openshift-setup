@@ -1,6 +1,7 @@
 providers:
   htpasswd: null
   github:
+    hostname: github.com
 
 admins:
   - thesteve0
