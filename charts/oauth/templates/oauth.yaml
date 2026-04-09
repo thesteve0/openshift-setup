@@ -15,8 +15,10 @@ spec:
         clientID: {{ $config.clientId }}
         clientSecret:
           name: github-oauth-app
+        {{- if $config.organizations }}
         organizations:
           {{- toYaml $config.organizations | nindent 10 }}
+        {{- end }}
       {{- else if eq $provider "htpasswd" }}
       type: HTPasswd
       htpasswd:
