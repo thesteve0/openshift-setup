@@ -1,6 +1,5 @@
 ---
-channel: fast-3.x
-
+channel: stable-3.x
 dataScienceCluster:
   version: v2
   components:
