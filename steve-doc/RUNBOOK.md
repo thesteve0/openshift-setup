@@ -761,6 +761,130 @@ make clean
 
 ## Troubleshooting
 
+### Tracking OpenShift AI Installation Progress
+
+RHOAI is a large install with many large images. The full process takes **30–45 minutes** and
+goes through several distinct phases. Use the layered commands below — inside the container
+after `source hack/common.sh` — to follow each phase.
+
+#### Layer 1: ArgoCD (did the chart apply?)
+
+```sh
+watch -n 15 'oc get application openshift-ai -n openshift-gitops'
+```
+
+Needs to reach `Synced` / `Healthy` before anything below will progress.
+
+#### Layer 2: OLM Subscription → CSV (is the operator installing?)
+
+```sh
+watch -n 15 'oc get sub,csv -n redhat-ods-operator'
+```
+
+CSV phases in order: `Pending` → `Installing` → `Succeeded`. This takes **5–15 minutes** — it is
+downloading the operator image. It is NOT stuck until it stays in `Installing` for more than
+15–20 minutes.
+
+#### Layer 3: Operator pods (is the operator running?)
+
+```sh
+watch -n 15 'oc get pods -n redhat-ods-operator'
+```
+
+You want all pods `Running`. Until the CSV reaches `Succeeded` this namespace will be empty or
+show `Init` containers.
+
+#### Layer 4: DataScienceCluster (is RHOAI reconciling its components?)
+
+```sh
+watch -n 15 'oc get datasciencecluster -o wide'
+```
+
+Each component (`dashboard`, `kserve`, `workbenches`, etc.) shows its `Ready` status individually.
+This is the best signal for which components are done vs still working. For full detail:
+
+```sh
+oc describe datasciencecluster
+```
+
+#### Layer 5: Application pods (the bulk of the wait)
+
+```sh
+watch -n 15 'oc get pods -n redhat-ods-applications'
+```
+
+This namespace has the most pods and the largest images. Expect **10–20 minutes** of `Init`,
+`ContainerCreating`, and `Pending` states. This is normal — it is pulling multi-GB images.
+
+#### One combined watch
+
+```sh
+watch -n 20 '
+echo "=== ArgoCD ==="
+oc get application openshift-ai -n openshift-gitops --no-headers
+echo ""
+echo "=== OLM CSV ==="
+oc get csv -n redhat-ods-operator --no-headers 2>/dev/null || echo "(not yet)"
+echo ""
+echo "=== DataScienceCluster ==="
+oc get datasciencecluster 2>/dev/null || echo "(not yet)"
+echo ""
+echo "=== Pods: redhat-ods-operator ==="
+oc get pods -n redhat-ods-operator --no-headers 2>/dev/null || echo "(not yet)"
+echo ""
+echo "=== Pods: redhat-ods-applications (non-Running) ==="
+oc get pods -n redhat-ods-applications --no-headers 2>/dev/null | grep -v "Running\|Completed" || echo "all running or not yet"
+'
+```
+
+The last section only shows pods that are NOT yet running, so as things come up the list shrinks
+rather than scrolling forever.
+
+#### Detecting genuinely stuck vs just slow
+
+**Check pod events first** — the single most useful diagnostic:
+
+```sh
+oc describe pod <pod-name> -n redhat-ods-applications
+```
+
+Look at the `Events:` section at the bottom. You'll see image pull progress, scheduling failures,
+or errors.
+
+**Warning signs that mean actually stuck (not just slow):**
+
+| What you see | What it means |
+|---|---|
+| `Pending` with event `Insufficient cpu/memory` | Not enough resources — need more/bigger nodes |
+| `ImagePullBackOff` | Registry unreachable or bad image ref |
+| `CrashLoopBackOff` | Pod starts but immediately dies — check logs |
+| CSV stuck in `Installing` >20 min | Check operator pod logs |
+
+**Check logs for a crashing pod:**
+
+```sh
+oc logs <pod-name> -n redhat-ods-applications --previous
+```
+
+**Check events across the whole namespace sorted by time:**
+
+```sh
+oc get events -n redhat-ods-applications --sort-by='.lastTimestamp' | tail -30
+```
+
+**Rough timeline:**
+
+| Time | What should be happening |
+|---|---|
+| 0–15 min | CSV installing, operator image pulling |
+| 15–25 min | Operator up, DSC created, component pods starting |
+| 25–45 min | All pods Running, dashboard available |
+
+If you are past 45 minutes and something is still not `Running`, it is worth digging in with
+`oc describe pod` and `oc get events`.
+
+---
+
 ### "The following files need to be committed or pushed for bootstrap"
 
 You hit [the two-commit dance](#the-two-commit-dance). Exit the container, `git add clusters/`,
