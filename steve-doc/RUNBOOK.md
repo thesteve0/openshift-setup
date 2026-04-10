@@ -371,6 +371,31 @@ This time, the cluster already exists, so the install step is skipped. The frame
 
 **You're done.** The cluster is running and ArgoCD is managing its configuration.
 
+> ### Tracking Bootstrap Progress
+>
+> Once `make` completes, ArgoCD is running and syncing your applications in the background.
+> Watch progress inside the container:
+>
+> ```sh
+> source hack/common.sh
+> watch -n 10 'oc get applications -n openshift-gitops'
+> ```
+>
+> The `HEALTH` column moves from `Missing` → `Progressing` → `Healthy`.
+> The `SYNC` column should end up `Synced`. For a visual view with per-resource detail,
+> open the ArgoCD UI (URL printed at the end of `make`).
+>
+> If a specific application is stuck:
+> ```sh
+> oc describe application <app-name> -n openshift-gitops
+> ```
+>
+> > **GitHub OAuth will not work until cert-manager is `Healthy` and `Synced`.** cert-manager
+> > provisions the TLS certificates and DNS names that the OAuth endpoint depends on. Until
+> > that completes, browser logins via GitHub will fail. Use the `kubeadmin` password in the
+> > meantime — it is printed at the end of `make` and stored in
+> > `install/<cluster>/auth/kubeadmin-password`.
+
 > ### Accessing Your Cluster
 >
 > | | URL |

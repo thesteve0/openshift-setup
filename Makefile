@@ -109,6 +109,17 @@ update-applications: $(CLUSTER_DIR)/cluster.yaml $(wildcard $(CLUSTER_DIR)/value
 .PHONY: bootstrap
 bootstrap: $(INSTALL_DIR)/oc update-applications
 	@hack/bootstrap.sh
+	@echo ""
+	@echo "Bootstrap complete. ArgoCD is now syncing your applications."
+	@echo ""
+	@echo "  OpenShift Console : https://console-openshift-console.apps.$(CLUSTER_URL)"
+	@echo "  ArgoCD UI         : https://openshift-gitops-server-openshift-gitops.apps.$(CLUSTER_URL)"
+	@echo ""
+	@echo "  kubeadmin password: $$(cat $(INSTALL_DIR)/auth/kubeadmin-password)"
+	@echo ""
+	@echo "Track ArgoCD sync progress (inside container):"
+	@echo "  watch -n 10 'oc get applications -n openshift-gitops'"
+	@echo ""
 
 .PHONY: encrypt
 encrypt:
