@@ -486,44 +486,124 @@ This process takes 10-20 minutes. You can watch progress in the ArgoCD UI.
 
 ## Adding OpenShift AI (RHOAI)
 
-OpenShift AI requires GPU nodes to be running first. See [Adding GPU Nodes](#adding-gpu-nodes).
+GPU nodes should be running before you add RHOAI if you intend to use model serving — that's
+what RHOAI schedules model servers onto. However, the operator, dashboard, and workbenches can
+be installed without GPUs.
 
-### Step 1: Create the Values File
+> **Capacity warning:** The RHOAI operator runs 3 pods × 500m CPU each, plus the dashboard and
+> a dozen component operators. Running this alongside ODF and GPU node feature discovery on two
+> `m6i.2xlarge` workers (8 vCPU each) **will run out of CPU headroom**. Plan for at least 3
+> worker nodes before installing RHOAI. Set `WORKER_COUNT=3` in your cluster env file.
+
+### Step 1: Create the install-operators values file
+
+The `openshift-ai` chart only **configures** RHOAI — it does not install the operator itself.
+You need a separate `install-operators` application to create the OLM Subscription that installs
+`rhods-operator`. See [needed-new-app-template.md](needed-new-app-template.md) for the full
+backstory on why this gap exists.
 
 ```sh
 CLUSTER_URL=mycluster.sandbox1234.opentlc.com
-mkdir -p clusters/${CLUSTER_URL}/values/openshift-ai
+mkdir -p clusters/${CLUSTER_URL}/values/install-operators
 
+cat > clusters/${CLUSTER_URL}/values/install-operators/values.yaml << 'EOF'
+operators:
+  rhods-operator:
+    channel: fast-3.x        # or stable-3.x for production
+    installPlanApproval: Automatic
+    namespace: redhat-ods-operator
+    operatorGroup:
+      enabled: true
+EOF
+```
+
+To check which channels are available on your cluster before choosing:
+```sh
+# Inside the container
+source hack/common.sh
+oc get packagemanifest rhods-operator -n openshift-marketplace \
+  -o jsonpath='{range .status.channels[*]}{.name}{"\n"}{end}'
+```
+
+- **`fast-3.x`** — new releases land here first; good for dev/test
+- **`stable-3.x`** — same releases after additional validation; better for production
+
+### Step 2: Create the OpenShift AI values file
+
+```sh
 cat > clusters/${CLUSTER_URL}/values/openshift-ai/values.yaml << 'EOF'
-# Minimal config — accepts most defaults from charts/openshift-ai/values.yaml
+---
+channel: fast-3.x    # informational only — actual channel is set in install-operators values
 dataScienceCluster:
+  version: v2
   components:
-    kserve:
+    dashboard:
       managementState: Managed
     workbenches:
+      workbenchNamespace: rhods-notebooks
       managementState: Managed
-    dashboard:
+    kserve:
+      nim:
+        managementState: Removed
+      rawDeploymentServiceConfig: Headless
+      managementState: Managed
+    modelregistry:
+      registriesNamespace: rhoai-model-registries
+      managementState: Managed
+    ray:
+      managementState: Managed
+    trainingoperator:
       managementState: Managed
 EOF
 ```
 
 See [charts/openshift-ai/values.yaml](../charts/openshift-ai/values.yaml) for all available
-options (components to enable, notebook sizes, model server sizes, etc.).
+options and additional components to enable.
 
-### Step 2: Regenerate, Commit, Push, Apply
+### Step 3: Regenerate, Commit, Push, Apply
 
 ```sh
 make update-applications
 exit
+
 git add clusters/
-git commit -m "Add OpenShift AI"
+git commit -m "Add OpenShift AI with install-operators"
 git push
+
 make shell CLUSTER_NAME=mycluster BASE_DOMAIN=sandbox1234.opentlc.com
 make
 ```
 
-The RHOAI dashboard will be available at:
-`https://rhods-dashboard-redhat-ods-applications.apps.<cluster>.<domain>`
+### What to expect
+
+ArgoCD syncs in two waves:
+
+1. **Wave 1 — `install-operators`**: Creates the OLM Subscription. The `rhods-operator`
+   installs via OLM — allow **5-10 minutes**.
+2. **Wave 4 — `openshift-ai`**: Once the operator is running and CRDs are registered, this
+   syncs and creates the DataScienceCluster. All RHOAI components deploy — allow another
+   **5-10 minutes**.
+
+Watch operator installation:
+```sh
+# Inside the container
+source hack/common.sh
+watch -n 10 'oc get subscription -n redhat-ods-operator; echo; oc get csv -n redhat-ods-operator'
+```
+
+### Accessing the RHOAI dashboard
+
+In RHOAI 3.x, the dashboard is exposed via a **Gateway** (not a direct OpenShift Route):
+
+`https://data-science-gateway.apps.<cluster>.<domain>/`
+
+It also appears as **"Red Hat OpenShift AI"** in the application grid (⊞ icon, top-right of
+the OpenShift console).
+
+> **Note on ArgoCD OutOfSync:** The `rhods-operator` and `rhods-dashboard` Deployments will
+> permanently show `OutOfSync` in ArgoCD. The chart tries to pin both to 1 replica, but OLM
+> and the RHOAI operator reset them to 3 and 2 respectively. This is a cosmetic conflict —
+> the cluster is fully functional.
 
 ---
 
@@ -597,6 +677,27 @@ make decrypt
 
 This converts `secrets.enc.yaml` → `secrets.yaml` so you can read and edit them. After editing,
 run `make encrypt` again before committing.
+
+### Scale Worker Nodes
+
+To add or remove worker nodes on a running cluster, scale the MachineSet directly. The
+`cluster.workerNodes` field in `clusters/<cluster>/cluster.yaml` is **not enforced** — no
+chart reads it, so changing it there has no effect on the actual cluster.
+
+```sh
+# Inside the container
+source hack/common.sh
+
+# See current MachineSets and their replica counts
+oc get machineset -n openshift-machine-api
+
+# Scale a specific MachineSet up to 1 (add a node in that AZ)
+oc scale machineset <machineset-name> -n openshift-machine-api --replicas=1
+```
+
+Each MachineSet corresponds to one availability zone (e.g. `us-east-2a`, `us-east-2b`,
+`us-east-2c`). Spreading replicas across AZs gives you better availability. New nodes
+take 3-5 minutes to join and become Ready.
 
 ### Approve Pending CSRs
 
