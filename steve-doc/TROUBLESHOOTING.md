@@ -161,3 +161,48 @@ KUBECONFIG=install/<cluster>/auth/kubeconfig-orig \
 ```
 
 This uses certificate-based auth (not a token), so it never expires and is unaffected by OAuth being broken. Use it whenever you need emergency cluster access.
+
+---
+
+## ArgoCD shows "no matches for kind" after a new operator installs CRDs
+
+### Symptoms
+
+An ArgoCD application is `OutOfSync` and the sync error says something like:
+
+```
+resource mapping not found for name: "odh-dashboard-config" namespace: "..."
+no matches for kind "OdhDashboardConfig" in version "opendatahub.io/v1alpha"
+ensure CRDs are installed first
+```
+
+...even though the CRD clearly exists (`oc get crd | grep odhdashboard` returns results) and
+the resource may already exist in the cluster.
+
+### Root cause
+
+ArgoCD's application controller caches the cluster's API resource list. When a new operator
+installs CRDs after ArgoCD has already started, the controller doesn't know about them until
+it refreshes its cache. This causes the controller to report "no matches for kind" even though
+the CRD is fully registered.
+
+### Fix
+
+Restart the ArgoCD application controller to force a cache refresh:
+
+```bash
+# Inside the container
+source hack/common.sh
+oc rollout restart statefulset openshift-gitops-application-controller -n openshift-gitops
+oc rollout restart deployment openshift-gitops-server -n openshift-gitops
+```
+
+Wait 2-3 minutes for the controller to come back up. Then trigger a new sync:
+
+```bash
+oc patch application.argoproj.io/<app-name> -n openshift-gitops \
+  --type merge \
+  -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+```
+
+The application should sync successfully on the next attempt.
