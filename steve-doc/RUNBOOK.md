@@ -796,3 +796,30 @@ The private key for decryption lives in `install/<cluster>/argo.txt`. If you've 
 you cannot decrypt the secrets encrypted for your cluster's age key. However, James's personal
 key is also always a recipient — he can decrypt and re-encrypt for a new key if needed.
 This is why backing up `install/<cluster>/` is important.
+
+### I missed the GitHub OAuth prompt and want to redo it
+
+The OAuth prompt only fires if `clusters/<cluster>/values/oauth/secrets.yaml` does not exist.
+Once that file is written (whether you chose GitHub OAuth or generated passwords), subsequent
+`make` runs skip the prompt entirely.
+
+To re-trigger it, delete both the plain and encrypted secrets files, then re-run `make cluster-yaml`:
+
+```sh
+# Replace with your actual CLUSTER_URL (e.g. mycluster.sandbox1234.opentlc.com)
+CLUSTER_URL=mycluster.sandbox1234.opentlc.com
+
+rm clusters/${CLUSTER_URL}/values/oauth/secrets.yaml \
+   clusters/${CLUSTER_URL}/values/oauth/secrets.enc.yaml
+
+make cluster-yaml CLUSTER_NAME=mycluster BASE_DOMAIN=sandbox1234.opentlc.com
+```
+
+Answer the prompts, then encrypt the new secrets and commit:
+
+```sh
+make encrypt
+git add clusters/
+git commit -m "Reconfigure OAuth for ${CLUSTER_URL}"
+git push
+```

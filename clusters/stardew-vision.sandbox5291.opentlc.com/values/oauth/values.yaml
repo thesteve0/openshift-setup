@@ -1,0 +1,9 @@
+providers:
+  htpasswd: null
+  github:
+    organizations:
+      - techravenconsulting
+
+admins:
+  - thesteve0
+  - jharmison-redhat

@@ -1,0 +1,16 @@
+desiredUpdate:
+  version: 4.20.15
+cluster:
+  name: stardew-vision
+  baseDomain: sandbox5291.opentlc.com
+  controlPlaneNodes: 1
+  workerNodes: 3
+  agePublicKey: age1cywqpjjqz8s2vxrn4drzfsuerpz3en5v8zw48vp3rp268rqv9yqskjpw9a
+  infraID: stardew-vision-bls5m
+aws:
+  region: us-east-2
+  azs: ["us-east-2c","us-east-2a","us-east-2b"]
+  ami: ami-0fd7c367ed8a90d52
+  subnets: ["subnet-001aa3c8704395701","subnet-0643fa4112253d4c8","subnet-0e74cf612b4e6a688"]
+  nodeSg: sg-030b5d06d0ec503c7
+  vpcId: vpc-07d8d223a94a43f3f
