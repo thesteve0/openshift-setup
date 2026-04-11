@@ -50,3 +50,34 @@ dashboardConfig:
 
 modelServerSizes: null
 notebookSizes: null
+
+hardwareProfiles:
+  - name: nvidia-l40s-gpu
+    global: true
+    displayName: NVIDIA L40S GPU
+    identifiers:
+      - displayName: CPU
+        identifier: cpu
+        resourceType: CPU
+        defaultCount: 4
+        minCount: 1
+        maxCount: 8
+      - displayName: Memory
+        identifier: memory
+        resourceType: Memory
+        defaultCount: 8Gi
+        minCount: 2Gi
+        maxCount: 32Gi
+      - displayName: NVIDIA L40S GPU
+        identifier: nvidia.com/gpu
+        resourceType: Accelerator
+        defaultCount: 1
+        minCount: 1
+        maxCount: 1
+    scheduling:
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
