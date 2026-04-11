@@ -4,26 +4,3 @@ enableCephTools: null
 multiCloudGateway:
   dbStorageClassName: gp3-csi
   reconcileStrategy: standalone
-resourceProfile: lean
-resources:
-  noobaa-core:
-    limits:
-      cpu: 1
-      memory: 4Gi
-    requests:
-      cpu: 500m
-      memory: 2Gi
-  noobaa-db:
-    limits:
-      cpu: 1
-      memory: 4Gi
-    requests:
-      cpu: 500m
-      memory: 2Gi
-  noobaa-endpoint:
-    limits:
-      cpu: 1
-      memory: 4Gi
-    requests:
-      cpu: 500m
-      memory: 2Gi
