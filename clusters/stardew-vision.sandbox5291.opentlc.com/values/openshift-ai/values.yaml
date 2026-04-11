@@ -75,9 +75,11 @@ hardwareProfiles:
         minCount: 1
         maxCount: 1
     scheduling:
-      nodeSelector:
-        nvidia.com/gpu.present: "true"
-      tolerations:
-        - effect: NoSchedule
-          key: nvidia.com/gpu
-          operator: Exists
+      type: Node
+      node:
+        nodeSelector:
+          nvidia.com/gpu.present: "true"
+        tolerations:
+          - effect: NoSchedule
+            key: nvidia.com/gpu
+            operator: Exists
