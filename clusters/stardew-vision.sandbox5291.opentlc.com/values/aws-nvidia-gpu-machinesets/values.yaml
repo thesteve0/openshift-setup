@@ -14,5 +14,5 @@ autoscaling:
   maxReplicas: 4
   scaleDown:
     delayAfterAdd: 60m
-    delayAfterDelete: 30m
-    unneededTime: 30m
+    delayAfterDelete: 35m
+    unneededTime: 35m
