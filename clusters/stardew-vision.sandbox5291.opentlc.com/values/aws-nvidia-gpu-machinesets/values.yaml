@@ -9,7 +9,7 @@ nodeLabels:
   rhai-tmm.dev/gpu: l40s
 
 autoscaling:
-  enabled: true
+  enabled: false
   minReplicas: 2
   maxReplicas: 4
   scaleDown:
