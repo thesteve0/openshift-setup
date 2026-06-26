@@ -1,0 +1,18 @@
+global:
+  cluster:
+    name: agentic-harness
+    baseDomain: sandbox5530.opentlc.com
+desiredUpdate:
+  version: 4.20.15
+cluster:
+  controlPlaneNodes: 1
+  workerNodes: 3
+  agePublicKey: age1x8d2nwpffmq2t4gh7u3g8ypgn65ged4qtfcjf44wqlghw4x264nqtn3gef
+  infraID: agentic-harness-r24qb
+aws:
+  region: us-east-2
+  azs: ["us-east-2a","us-east-2b","us-east-2c"]
+  ami: ami-0fd7c367ed8a90d52
+  subnets: ["subnet-0be5d06b7ed423265","subnet-020b5eb0bc5cd69ce","subnet-0d071d9b87bfea698"]
+  nodeSg: sg-0fd4485f93110d197
+  vpcId: vpc-0ed7e3b7dff618c7d
