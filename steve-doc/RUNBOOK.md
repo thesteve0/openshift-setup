@@ -148,12 +148,18 @@ EOF
 | `WORKER_TYPE` | cluster `.env` | EC2 instance type for workers (default: `m6i.2xlarge`) |
 | `WORKER_COUNT` | cluster `.env` | Number of initial worker nodes (default: `3`) |
 
-### Optional: Adding Your Own Age Key
+### Adding Your Own Age Key
 
 By default, your encrypted secrets have two recipients: the cluster's auto-generated age key
 (stored in `install/<cluster>/argo.txt`) and James's personal key (hardcoded in `hack/common.sh`).
 If you want to be able to decrypt secrets yourself without the cluster key — for example, if you
 need to read a secret from a different machine — add your own personal age key.
+
+**NOTE**:
+We have already generated 2 age keys and they are both stored in bitwarden as Secure Notes. Use one of these rather than
+making new ones as the follow steps suggest. If you open the note you will see the public and private keys. Just copy 
+over the public key into `hack/common.sh`. If you are copying your configs from a previous cluster then both public keys 
+are already in the file. 
 
 **The best time to do this is before the first `make` run**, so your key is baked in from the
 start. But if you've already provisioned a cluster, you can add it later — `make encrypt` will
