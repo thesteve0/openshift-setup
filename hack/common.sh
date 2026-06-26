@@ -4,7 +4,8 @@ set -e
 
 COMMON_PUBLIC_KEYS=(
 	age1ky5amdnkwzj03gwal0cnk7ue7vsd0n64pxm50nxgycssp7vgpqvq9s7lyw # jharmison@redhat.com
-	age1nsza3jv23lhvyt3zuu4kjg7j340l4vvntxhynlen779a6gw3qufqxks2dh # stpousty@redhat.com stardew.txt
+	age1nsza3jv23lhvyt3zuu4kjg7j340l4vvntxhynlen779a6gw3qufqxks2dh # stpousty@redhat.com stardew.txt  in bitwarden
+	age1pkexartwwnwc6eqpvq34eykesfm3kg2xk8y8llrd73zpv5wfzgyqalnpdl # stpousty@redhat.com agentic-harness.txt in bitwarden
 )
 
 for envfile in .env "${INSTALL_DIR}.env"; do
