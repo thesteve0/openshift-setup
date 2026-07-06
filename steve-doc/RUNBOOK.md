@@ -526,25 +526,37 @@ be installed without GPUs.
 > `m6i.2xlarge` workers (8 vCPU each) **will run out of CPU headroom**. Plan for at least 3
 > worker nodes before installing RHOAI. Set `WORKER_COUNT=3` in your cluster env file.
 
-### Step 1: Create the install-operators values file
+### Step 1: Create the OpenShift AI values file
 
-The `openshift-ai` chart only **configures** RHOAI — it does not install the operator itself.
-You need a separate `install-operators` application to create the OLM Subscription that installs
-`rhods-operator`. See [needed-new-app-template.md](needed-new-app-template.md) for the full
-backstory on why this gap exists.
+The `openshift-ai` chart handles both installing the `rhods-operator` via OLM **and** configuring
+RHOAI. You do not need a separate `install-operators` application.
+
+The chart has sensible defaults for all components (see
+[charts/openshift-ai/values.yaml](../charts/openshift-ai/values.yaml)). You only need to provide
+overrides for what you want to change. A minimal values file that accepts all defaults:
 
 ```sh
 CLUSTER_URL=mycluster.sandbox1234.opentlc.com
-mkdir -p clusters/${CLUSTER_URL}/values/install-operators
+mkdir -p clusters/${CLUSTER_URL}/values/openshift-ai
 
-cat > clusters/${CLUSTER_URL}/values/install-operators/values.yaml << 'EOF'
-operators:
-  rhods-operator:
-    channel: fast-3.x        # or stable-3.x for production
-    installPlanApproval: Automatic
-    namespace: redhat-ods-operator
-    operatorGroup:
-      enabled: true
+cat > clusters/${CLUSTER_URL}/values/openshift-ai/values.yaml << 'EOF'
+---
+install-rhoai:
+  enabled: true
+EOF
+```
+
+To override the operator channel or individual components, add only the keys you want to change.
+For example, to use the `fast` channel instead of the default `stable-3.4`:
+
+```sh
+cat > clusters/${CLUSTER_URL}/values/openshift-ai/values.yaml << 'EOF'
+---
+install-rhoai:
+  enabled: true
+  operators:
+    rhods-operator:
+      channel: fast-3.x
 EOF
 ```
 
@@ -559,46 +571,18 @@ oc get packagemanifest rhods-operator -n openshift-marketplace \
 - **`fast-3.x`** — new releases land here first; good for dev/test
 - **`stable-3.x`** — same releases after additional validation; better for production
 
-### Step 2: Create the OpenShift AI values file
+> **Don't copy the full chart defaults file.** Only set overrides — this way future chart
+> updates flow through automatically. Copying the whole file locks you to a snapshot of the
+> defaults.
 
-```sh
-cat > clusters/${CLUSTER_URL}/values/openshift-ai/values.yaml << 'EOF'
----
-channel: fast-3.x    # informational only — actual channel is set in install-operators values
-dataScienceCluster:
-  version: v2
-  components:
-    dashboard:
-      managementState: Managed
-    workbenches:
-      workbenchNamespace: rhods-notebooks
-      managementState: Managed
-    kserve:
-      nim:
-        managementState: Removed
-      rawDeploymentServiceConfig: Headless
-      managementState: Managed
-    modelregistry:
-      registriesNamespace: rhoai-model-registries
-      managementState: Managed
-    ray:
-      managementState: Managed
-    trainingoperator:
-      managementState: Managed
-EOF
-```
-
-See [charts/openshift-ai/values.yaml](../charts/openshift-ai/values.yaml) for all available
-options and additional components to enable.
-
-### Step 3: Regenerate, Commit, Push, Apply
+### Step 2: Regenerate, Commit, Push, Apply
 
 ```sh
 make update-applications
 exit
 
 git add clusters/
-git commit -m "Add OpenShift AI with install-operators"
+git commit -m "Add OpenShift AI"
 git push
 
 make shell CLUSTER_NAME=mycluster BASE_DOMAIN=sandbox1234.opentlc.com
@@ -607,13 +591,8 @@ make
 
 ### What to expect
 
-ArgoCD syncs in two waves:
-
-1. **Wave 1 — `install-operators`**: Creates the OLM Subscription. The `rhods-operator`
-   installs via OLM — allow **5-10 minutes**.
-2. **Wave 4 — `openshift-ai`**: Once the operator is running and CRDs are registered, this
-   syncs and creates the DataScienceCluster. All RHOAI components deploy — allow another
-   **5-10 minutes**.
+ArgoCD installs the `rhods-operator` via OLM first, then creates the DataScienceCluster
+once the CRDs are registered. The full process takes **15-20 minutes**.
 
 Watch operator installation:
 ```sh
