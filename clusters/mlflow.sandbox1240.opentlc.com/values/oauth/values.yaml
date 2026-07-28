@@ -5,4 +5,5 @@ providers:
       - TechRavenConsulting
 
 admins:
-  - thesteve0,jharmison-redhat
+  - thesteve0
+  - jharmison-redhat
