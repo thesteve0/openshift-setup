@@ -1,0 +1,18 @@
+global:
+  cluster:
+    name: mlflow
+    baseDomain: sandbox1240.opentlc.com
+desiredUpdate:
+  version: 4.20.15
+cluster:
+  controlPlaneNodes: 1
+  workerNodes: 3
+  agePublicKey: age1f8dfxlnteacxq49x3ka7zwxk2e84sarhj9peuedqk2jrkm4qpujsz9mlae
+  infraID: mlflow-k82tv
+aws:
+  region: us-east-2
+  azs: ["us-east-2c","us-east-2a","us-east-2b"]
+  ami: ami-0fd7c367ed8a90d52
+  subnets: ["subnet-08a0ea20fa4c15c59","subnet-0071b6801c05fc801","subnet-0bbc153aebb6e775c"]
+  nodeSg: sg-0d745d0daf1e6f1a4
+  vpcId: vpc-0594c67faeb0b7b5b
