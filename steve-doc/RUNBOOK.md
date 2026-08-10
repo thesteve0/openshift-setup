@@ -1,4 +1,4 @@
-# Runbook: Operating openshift-setup
+make # Runbook: Operating openshift-setup
 
 Step-by-step procedures for provisioning and managing OpenShift AI clusters.
 When a step references a concept you're not familiar with, the link will take you to the
