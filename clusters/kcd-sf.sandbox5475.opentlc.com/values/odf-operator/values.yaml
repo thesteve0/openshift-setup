@@ -1,9 +1,0 @@
----
-install-odf:
-  operators:
-    odf-operator:
-      channel: stable-4.20
-enableCephTools: null
-multiCloudGateway:
-  dbStorageClassName: gp3-csi
-  reconcileStrategy: standalone
