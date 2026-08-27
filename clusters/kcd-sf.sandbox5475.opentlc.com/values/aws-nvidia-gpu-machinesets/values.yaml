@@ -1,0 +1,18 @@
+---
+instanceType: g6e.2xlarge
+taints:
+  - key: nvidia.com/gpu
+    value: l40s
+    effect: NoSchedule
+
+nodeLabels:
+  rhai-tmm.dev/gpu: l40s
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 4
+  scaleDown:
+    delayAfterAdd: 60m
+    delayAfterDelete: 35m
+    unneededTime: 35m

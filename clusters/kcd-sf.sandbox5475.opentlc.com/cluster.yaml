@@ -1,0 +1,18 @@
+global:
+  cluster:
+    name: kcd-sf
+    baseDomain: sandbox5475.opentlc.com
+desiredUpdate:
+  version: 4.20.15
+cluster:
+  controlPlaneNodes: 1
+  workerNodes: 3
+  agePublicKey: age1lwq9dv4wezlnd34z3slewq8n4fwrcx9v9xmumxt7mtxsn3c3e5gssfmmjt
+  infraID: kcd-sf-s9xt8
+aws:
+  region: us-east-2
+  azs: ["us-east-2a","us-east-2b","us-east-2c"]
+  ami: ami-0fd7c367ed8a90d52
+  subnets: ["subnet-003f5ad54d03c76e0","subnet-0978450b41d4db72d","subnet-091b9a85329ab9ef1"]
+  nodeSg: sg-0d0cd90721c497571
+  vpcId: vpc-0156d4257b983d1d1
