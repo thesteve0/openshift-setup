@@ -52,34 +52,26 @@ modelServerSizes: null
 notebookSizes: null
 
 hardwareProfiles:
-  - name: nvidia-l40s-gpu
-    global: true
+  nvidia-l40s-gpu:
     displayName: NVIDIA L40S GPU
-    identifiers:
-      - displayName: CPU
-        identifier: cpu
-        resourceType: CPU
-        defaultCount: 4
-        minCount: 1
-        maxCount: 8
-      - displayName: Memory
-        identifier: memory
-        resourceType: Memory
-        defaultCount: 8Gi
-        minCount: 2Gi
-        maxCount: 32Gi
-      - displayName: NVIDIA L40S GPU
-        identifier: nvidia.com/gpu
-        resourceType: Accelerator
-        defaultCount: 1
-        minCount: 1
-        maxCount: 1
-    scheduling:
-      type: Node
-      node:
-        nodeSelector:
-          nvidia.com/gpu.present: "true"
-        tolerations:
-          - effect: NoSchedule
-            key: nvidia.com/gpu
-            operator: Exists
+    cpu:
+      min: 1
+      default: 4
+      max: 8
+    memory:
+      min: 2Gi
+      default: 8Gi
+      max: 32Gi
+    gpu:
+      nvidia.com/gpu:
+        displayName: NVIDIA L40S GPU
+        min: 1
+        default: 1
+        max: 1
+    node:
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
