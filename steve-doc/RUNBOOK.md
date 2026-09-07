@@ -26,7 +26,7 @@ relevant section in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Prerequisites
 
-Before you start, you need the following. Check each one off.
+Before you start, you need the following. Check each one off.    
 
 ### On your laptop
 
