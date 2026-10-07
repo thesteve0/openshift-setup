@@ -1,20 +1,23 @@
+ifneq ("$(wildcard /opt/homebrew/bin/bash)","")
+	SHELL := /opt/homebrew/bin/bash
+endif
+
 -include .env
 
 CLUSTER_NAME ?= cluster
 BASE_DOMAIN ?= internal.rhai-tmm.dev
-AWS_REGION ?= us-east-2
+AWS_REGION ?= us-west-2
 CONTROL_PLANE_TYPE ?= m6i.2xlarge
-CONTROL_PLANE_COUNT ?= 1
+CONTROL_PLANE_COUNT ?= 3
 WORKER_TYPE ?= m6i.2xlarge
 WORKER_COUNT ?= 3
-ARGO_GIT_URL ?= git@github.com:thesteve0/openshift-setup.git
 WORKER_DISK_SIZE ?= 200
+ARGO_GIT_URL ?= git@github.com:jharmison-redhat/openshift-setup.git
 ARGO_GIT_REVISION ?= HEAD
 ARGO_APPLICATIONS ?= config oauth cert-manager monitoring
-CLUSTER_VERSION ?= 4.20.15
 # https://mirror.openshift.com/pub/openshift-v4/clients/ocp/
-CLUSTER_VERSION ?= 4.21.18
-ACME_EMAIL ?= stpousty@redhat.com
+CLUSTER_VERSION ?= 4.22.11
+ACME_EMAIL ?=
 ACME_DISABLE_ACCOUNT_KEY_GENERATION ?= true
 GH_REPO := $(word 1,$(subst ., ,$(word 2,$(subst :, ,$(ARGO_GIT_URL)))))
 
@@ -109,17 +112,6 @@ update-applications: $(CLUSTER_DIR)/cluster.yaml $(wildcard $(CLUSTER_DIR)/value
 .PHONY: bootstrap
 bootstrap: $(INSTALL_DIR)/oc update-applications
 	@hack/bootstrap.sh
-	@echo ""
-	@echo "Bootstrap complete. ArgoCD is now syncing your applications."
-	@echo ""
-	@echo "  OpenShift Console : https://console-openshift-console.apps.$(CLUSTER_URL)"
-	@echo "  ArgoCD UI         : https://openshift-gitops-server-openshift-gitops.apps.$(CLUSTER_URL)"
-	@echo ""
-	@echo "  kubeadmin password: $$(cat $(INSTALL_DIR)/auth/kubeadmin-password)"
-	@echo ""
-	@echo "Track ArgoCD sync progress (inside container):"
-	@echo "  watch -n 10 'oc get applications -n openshift-gitops'"
-	@echo ""
 
 .PHONY: encrypt
 encrypt:
@@ -175,17 +167,7 @@ shell: $(INSTALL_DIR)/kubectl
 demo: $(CLUSTER_DIR)/cluster.yaml $(INSTALL_DIR)/kubectl
 	openshift-setup demo process $(DEMO_FILE)
 
-.PHONY: test-model
-test-model:
-	for n in 1 5 10 32 10 5 1; do \
-		locust --headless --users $$n --processes $$n -f tests/locustfile-model-endpoint.py -t 2m; \
-	done
-
-.PHONY: test-llamastack
-test-llamastack:
-	for n in 1 5 10 32 10 5 1; do \
-		locust --headless --users $$n --processes $$n -f tests/locustfile-llama-stack-endpoint.py -t 2m; \
-	done
-
-.PHONY: test
-test: test-model test-llamastack
+.PHONY: kubeadmin
+kubeadmin: $(CLUSTER_DIR)/cluster.yaml
+	@cat $(INSTALL_DIR)/auth/kubeadmin-password
+	@echo
