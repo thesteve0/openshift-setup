@@ -1,0 +1,18 @@
+global:
+  cluster:
+    name: pytorch-conf
+    baseDomain: sandbox5282.opentlc.com
+desiredUpdate:
+  version: 4.22.11
+cluster:
+  controlPlaneNodes: 1
+  workerNodes: 3
+  agePublicKey: age1e9v7a6pylrjl5rrlttnujzequzycqn8em5p6q0f3awey6g9ke4ass3mxq4
+  infraID: pytorch-conf-m2g6t
+aws:
+  region: us-east-2
+  azs: ["us-east-2a","us-east-2b","us-east-2c"]
+  ami: ami-03b58703d4e9ea61a
+  subnets: ["subnet-0692980990ca1afc5","subnet-0471b7af758d407e2","subnet-0cab2a602e6c87bf3"]
+  nodeSg: sg-0cfc20d6868bc79b4
+  vpcId: vpc-074011f0df6ddc4f0
