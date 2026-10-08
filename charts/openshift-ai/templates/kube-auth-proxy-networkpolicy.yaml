@@ -29,3 +29,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: openshift-dns
+    - ports:
+        - port: 443
+          protocol: TCP
+      to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
