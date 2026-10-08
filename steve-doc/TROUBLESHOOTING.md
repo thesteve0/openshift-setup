@@ -206,3 +206,187 @@ oc patch application.argoproj.io/<app-name> -n openshift-gitops \
 ```
 
 The application should sync successfully on the next attempt.
+
+---
+
+## ArgoCD manifest generation fails with `Error: unknown command "secrets" for "helm"`
+
+### Symptoms
+
+An Application that uses `helm-secrets` value file schemes (e.g. `secrets+age-import://...`)
+fails to generate manifests entirely:
+
+```
+Failed to load target state: failed to generate manifest for source 1 of 1: rpc error: code = Unknown
+desc = failed to execute helm template command: failed running helm: `helm template . ...`
+failed exit status 1: Error: unknown command "secrets" for "helm"
+```
+
+### Root cause (two issues, both required to hit this)
+
+**Issue 1: no writable `$HOME` for Helm's plugin cache**
+
+The `argocd-repo-server` image bundles Helm v4. Helm v4's plugin manager needs a writable
+`$HOME/.cache/helm/wazero-build` directory to load *any* subprocess plugin — including
+`helm-secrets`. The repo-server container runs with a read-only root filesystem and no `HOME`
+set (defaults to `/`), so plugin loading fails silently — you get a `WARN` in the repo-server
+logs, not a hard error, and `helm secrets` simply never gets registered.
+
+**Issue 2: old-style `helm-secrets` tarball only registers as a `getter`, not a CLI subcommand**
+
+Helm v4 changed the plugin format. A plugin now declares an explicit `type` (`cli/v1`,
+`getter/v1`, `postrenderer/v1`) in its `plugin.yaml`. The old Helm 2/3-style single tarball
+(`helm-secrets-X.tgz`) only gets picked up as `getter/v1` ("legacy") under Helm v4 — it never
+registers the `helm secrets <cmd>` CLI subcommand that the PATH-shadowing `helm` wrapper script
+(`/usr/local/sbin/helm` → `helm secrets template/install/upgrade/lint/diff`) depends on.
+`jkroepke/helm-secrets` ships this as three separate release packages for Helm v4:
+`secrets-X.tgz` (cli/v1), `secrets-getter-X.tgz` (getter/v1), `secrets-post-renderer-X.tgz`
+(postrenderer/v1).
+
+### Fix
+
+In `bootstrap/argocd.yaml`, under `spec.repo`:
+
+- Add `HOME=/tmp` as an env var on the repo-server container (fixes issue 1).
+- Download and extract all three Helm-4-native packages instead of the single legacy tarball
+  (fixes issue 2):
+  ```
+  curl -Lo - https://github.com/jkroepke/helm-secrets/releases/download/v${HELM_SECRETS_VERSION}/secrets-${HELM_SECRETS_VERSION}.tgz | tar -C /custom-tools/helm-plugins -xzf-
+  curl -Lo - https://github.com/jkroepke/helm-secrets/releases/download/v${HELM_SECRETS_VERSION}/secrets-getter-${HELM_SECRETS_VERSION}.tgz | tar -C /custom-tools/helm-plugins -xzf-
+  curl -Lo - https://github.com/jkroepke/helm-secrets/releases/download/v${HELM_SECRETS_VERSION}/secrets-post-renderer-${HELM_SECRETS_VERSION}.tgz | tar -C /custom-tools/helm-plugins -xzf-
+  ```
+- The wrapper script's extracted path also changed with the new packaging — update the `cp`
+  source from `.../helm-plugins/helm-secrets/scripts/wrapper/helm.sh` to
+  `.../helm-plugins/secrets/scripts/wrapper/helm.sh`.
+
+### Verifying
+
+```bash
+POD=$(oc get pods -n openshift-gitops -l app.kubernetes.io/name=openshift-gitops-repo-server -o jsonpath='{.items[0].metadata.name}')
+oc exec "$POD" -n openshift-gitops -- env HOME=/tmp /usr/local/bin/helm plugin list
+# "secrets" should show TYPE cli/v1, not getter/v1
+```
+
+Then hard-refresh the affected Application — it should sync without the `unknown command
+"secrets"` error.
+
+### Pushing this fix to a cluster that's already bootstrapped
+
+`bootstrap/argocd.yaml` only gets re-applied by `make bootstrap` / `hack/bootstrap.sh`, which
+refuses to run again once a cluster is healthy (and does extra GitHub deploy-key / git-push
+checks you may not want to trigger). To push just this file's change immediately:
+
+```bash
+oc apply -k install/<cluster-url>/bootstrap
+```
+
+This rolls a new `repo-server` pod automatically.
+
+---
+
+## RHOAI dashboard (`data-science-gateway`) login: redirect loop → 500 → 403
+
+### Symptoms (in order, as each layer gets fixed)
+
+1. Visiting `https://data-science-gateway.apps.<cluster>/` redirect-loops forever
+   (`NS_ERROR_REDIRECT_LOOP` in Firefox) — every request gets a fresh `_oauth2_proxy_csrf`
+   cookie and a 302 back to `/`, login is never actually initiated against the real IdP.
+2. After a partial fix, the loop stops and you're correctly sent to
+   `oauth-openshift.apps.<cluster>/oauth/authorize`, login succeeds, but the browser lands on a
+   500 error, or later, a `403 Forbidden` / "Access to ... was denied" page.
+3. Even after committing the correct fix, the error comes back intermittently until ArgoCD
+   actually resyncs.
+
+### Root cause
+
+RHOAI 3.x's Gateway API-based dashboard (`GatewayConfig` resource, auto-created by the RHOAI
+operator — not something this repo templates) deploys an OAuth-proxy-equivalent called
+`kube-auth-proxy` into the **`openshift-ingress`** namespace. Recent OpenShift versions
+auto-create a default-deny-all `NetworkPolicy` (covering both Ingress and Egress) in every core
+platform namespace as a hardening baseline — `openshift-ingress` is one of them. RHOAI's
+generated `NetworkPolicy` for `kube-auth-proxy` only declares **Ingress** rules, so under that
+default-deny baseline `kube-auth-proxy` has no egress at all:
+
+1. **Can't reach the in-cluster API service** (`172.30.0.1:443`) to auto-discover the OAuth
+   login/token endpoints. Discovery fails silently (`context deadline exceeded`), so
+   `kube-auth-proxy` just keeps re-initiating login forever → the redirect loop.
+2. After allowing egress to the API server, the code-redeem call still fails: it POSTs to
+   `https://oauth-openshift.apps.<cluster>/oauth/token`, which resolves to the cluster's
+   **public** ingress NLB IP — genuinely external traffic from the pod's point of view, not
+   something a `podSelector`-based egress rule can match. The call times out, and Envoy's
+   `ext_authz` filter (RHOAI's gateway auth-check, which calls `kube-auth-proxy`'s
+   `/oauth2/auth`) treats a failed/timed-out auth check as a hard deny →
+   `403 ext_authz_error` shown to the browser.
+3. The `NetworkPolicy` fix is managed by the `openshift-ai` ArgoCD Application
+   (`argocd.argoproj.io/tracking-id` annotation). Any live `oc apply` edit gets silently
+   reverted back to whatever's in git on ArgoCD's next poll (default ~3 min) — so a fix that
+   "works" when tested live can appear to regress a few minutes later if it hasn't been
+   committed and pushed yet.
+
+### Fix
+
+Added `charts/openshift-ai/templates/kube-auth-proxy-networkpolicy.yaml` — a **supplemental**
+`NetworkPolicy` (NetworkPolicies targeting the same pod are additive/unioned, so this doesn't
+conflict with the operator-owned one) allowing `kube-auth-proxy` pods
+(`app=kube-auth-proxy` in `openshift-ingress`) to egress to:
+
+- `openshift-kube-apiserver` pods on `6443` (OAuth endpoint discovery)
+- `openshift-dns` namespace on `5353` (DNS resolution)
+- `0.0.0.0/0` on `443` (the public `oauth-openshift` route, for login/token redeem — scoped to
+  port 443 only; the ingress NLB's public IPs aren't stable enough to pin to specific `/32`s,
+  and opening egress to the whole internet on just this one pod, just on 443, was judged an
+  acceptable trade-off)
+
+### Diagnosing this class of problem
+
+Trace the request through each hop, in order:
+
+```bash
+# 1. kube-auth-proxy itself — shows OAuth discovery / redeem errors directly
+oc logs -n openshift-ingress deployment/kube-auth-proxy --tail=50
+
+# 2. the Istio/Envoy gateway pod — shows the real HTTP status and the ext_authz verdict
+POD=$(oc get pods -n openshift-ingress -l gateway.networking.k8s.io/gateway-name=data-science-gateway -o jsonpath='{.items[0].metadata.name}')
+oc logs "$POD" -n openshift-ingress -c istio-proxy --tail=50
+# "ext_authz_denied" = no/expired auth cookie (normal, triggers login)
+# "ext_authz_error"  = the auth check itself failed/timed out (a real bug — go look at kube-auth-proxy)
+
+# 3. confirm whether egress/NetworkPolicy is actually the blocker
+oc exec <kube-auth-proxy-pod> -n openshift-ingress -c kube-auth-proxy -- \
+  curl -sk --max-time 5 -o /dev/null -w "HTTP:%{http_code} time:%{time_total}\n" <destination-url>
+# HTTP:000 and time ~= --max-time means the connection is being blocked (NetworkPolicy/SG),
+# not an application-level bug
+```
+
+### Gotcha: live `oc apply` edits to ArgoCD-managed resources don't stick
+
+If a resource carries an `argocd.argoproj.io/tracking-id` annotation, ArgoCD owns it and will
+revert any live edit back to git on its next poll. Use `oc apply` for fast live iteration while
+debugging, but once a fix is confirmed, commit + push right away, then force an immediate
+resync instead of waiting on the ~3 minute poll interval:
+
+```bash
+oc annotate application.argoproj.io <app-name> -n openshift-gitops argocd.argoproj.io/refresh=hard --overwrite
+```
+
+---
+
+## Benign gRPC noise in apiserver logs: `failed to connect to <node-ip>:2379`
+
+### Symptoms
+
+`openshift-apiserver` and/or `kube-apiserver` pods repeatedly log, roughly every 10 seconds:
+
+```
+grpc: addrConn.createTransport failed to connect to {Addr: "<node-ip>:2379", ...}.
+Err: connection error: desc = "transport: Error while dialing: dial tcp <node-ip>:2379: operation was canceled"
+```
+
+### What it actually is
+
+This looked alarming (etcd connectivity failure) but checked out as cosmetic noise: etcd
+health (`etcdctl endpoint health`), direct TCP reachability to `2379`, node resource/pressure,
+and all ClusterOperator statuses were fine. It's gRPC's `pickfirstleaf` balancer rapidly
+creating and cancelling subchannels — a known chatty pattern, not a real connectivity or etcd
+problem. More noticeable on single-control-plane-node clusters since there's only one etcd
+member to repeatedly reconnect to. Safe to ignore.
