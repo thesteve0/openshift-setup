@@ -1,5 +1,6 @@
 ---
 instanceType: g6e.2xlarge
+desiredReplicas: 2
 taints:
   - key: nvidia.com/gpu
     value: l40s
